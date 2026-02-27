@@ -1,8 +1,0 @@
-我们一起来写一个项目，平台用来监控一些web容器状态，这些容器平台提供了API操作文档，你需要根据这些API文档链接，完成对平台容器状态的监控，如果支持重启，暂停，删除，查看日志，等操作，也要实现
-下面是我整理的文档链接
-zeabur：https://zeabur.com/docs/en-US/developer/public-api
-render：https://api-docs.render.com/reference/introduction
-koyeb:   https://www.koyeb.com/docs/reference/api
-vercel:   https://vercel.com/docs/rest-api
-
-平台需要有登录和接口鉴权功能
