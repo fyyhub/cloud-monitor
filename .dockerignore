@@ -1,0 +1,17 @@
+# 依赖
+node_modules/
+npm-debug.log*
+
+# 构建产物
+frontend/dist/
+
+# 后端运行时数据（建议挂载 volume，不打入镜像）
+backend/data/
+backend/logs/
+
+# 环境变量
+backend/.env
+
+# 系统文件
+.DS_Store
+Thumbs.db
