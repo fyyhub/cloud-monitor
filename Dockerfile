@@ -51,7 +51,7 @@ COPY --from=backend-builder /app/backend/src ./src
 COPY backend/package.json ./
 
 # 数据和日志目录（建议挂载 volume）
-RUN mkdir -p /app/backend/data /app/backend/logs
+RUN mkdir -p /app/backend/data /app/backend/logs /run/nginx
 
 # ---------- supervisord 配置 ----------
 COPY supervisord.conf /etc/supervisord.conf
