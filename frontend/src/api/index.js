@@ -3,7 +3,8 @@ import http from './http'
 export const authApi = {
   login: (data) => http.post('/auth/login', data),
   register: (data) => http.post('/auth/register', data),
-  profile: () => http.get('/auth/profile')
+  profile: () => http.get('/auth/profile'),
+  changePassword: (data) => http.post('/auth/change-password', data)
 }
 
 export const platformApi = {

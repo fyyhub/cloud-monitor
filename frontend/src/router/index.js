@@ -3,15 +3,21 @@ import { useAuthStore } from '@/store/auth'
 
 const routes = [
   {
+    path: '/',
+    name: 'Status',
+    component: () => import('@/views/StatusPage.vue'),
+    meta: { public: true }
+  },
+  {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/Login.vue'),
     meta: { public: true }
   },
   {
-    path: '/',
+    path: '/admin',
     component: () => import('@/components/Layout.vue'),
-    redirect: '/dashboard',
+    redirect: '/admin/dashboard',
     children: [
       {
         path: 'dashboard',

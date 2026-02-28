@@ -59,7 +59,11 @@ router.post('/login', async (req, res, next) => {
     )
 
     logger.info('用户登录', { username })
-    res.json({ token, username: user.username })
+    res.json({
+      token,
+      username: user.username,
+      mustChangePassword: !!user.must_change_password
+    })
   } catch (err) {
     next(err)
   }
@@ -70,6 +74,36 @@ router.get('/profile', authMiddleware, (req, res) => {
   const db = getDb()
   const user = db.prepare('SELECT id, username, email, created_at FROM users WHERE id = ?').get(req.user.id)
   res.json(user)
+})
+
+// 修改密码
+router.post('/change-password', authMiddleware, async (req, res, next) => {
+  try {
+    const { oldPassword, newPassword } = req.body
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ error: '旧密码和新密码不能为空' })
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: '新密码长度不能少于6位' })
+    }
+
+    const db = getDb()
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id)
+
+    const valid = await bcrypt.compare(oldPassword, user.password_hash)
+    if (!valid) {
+      return res.status(400).json({ error: '旧密码错误' })
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 10)
+    db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      .run(newHash, req.user.id)
+
+    logger.info('用户修改密码', { username: req.user.username })
+    res.json({ message: '密码修改成功' })
+  } catch (err) {
+    next(err)
+  }
 })
 
 export default router

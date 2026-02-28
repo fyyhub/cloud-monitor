@@ -4,19 +4,19 @@
       <div class="logo">云容器监控</div>
       <el-menu :router="true" :default-active="$route.path" background-color="#001529"
         text-color="#ffffffa6" active-text-color="#fff">
-        <el-menu-item index="/dashboard">
+        <el-menu-item index="/admin/dashboard">
           <el-icon><DataBoard /></el-icon>仪表盘
         </el-menu-item>
-        <el-menu-item index="/platforms">
+        <el-menu-item index="/admin/platforms">
           <el-icon><Connection /></el-icon>平台管理
         </el-menu-item>
-        <el-menu-item index="/containers">
+        <el-menu-item index="/admin/containers">
           <el-icon><Box /></el-icon>容器列表
         </el-menu-item>
-        <el-menu-item index="/alerts">
+        <el-menu-item index="/admin/alerts">
           <el-icon><Bell /></el-icon>告警中心
         </el-menu-item>
-        <el-menu-item index="/watch">
+        <el-menu-item index="/admin/watch">
           <el-icon><Timer /></el-icon>定时监测
         </el-menu-item>
       </el-menu>

@@ -18,6 +18,7 @@ import platformRoutes from './routes/platforms.js'
 import containerRoutes from './routes/containers.js'
 import alertRoutes from './routes/alerts.js'
 import watchRoutes from './routes/watch.js'
+import statusRoutes from './routes/status.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -51,6 +52,7 @@ const loginLimiter = rateLimit({
 })
 
 // 路由
+app.use('/api/status', statusRoutes)
 app.use('/api/auth', loginLimiter, authRoutes)
 app.use('/api/platforms', platformRoutes)
 app.use('/api/containers', containerRoutes)

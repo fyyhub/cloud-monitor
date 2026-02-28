@@ -1,3 +1,4 @@
+import bcrypt from 'bcrypt'
 import { getDb } from './database.js'
 
 export function initDb() {
@@ -9,6 +10,7 @@ export function initDb() {
       username VARCHAR(50) UNIQUE NOT NULL,
       password_hash VARCHAR(255) NOT NULL,
       email VARCHAR(100),
+      must_change_password INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -87,6 +89,23 @@ export function initDb() {
   `)
 
   console.log('数据库初始化完成')
+
+  // 迁移：为已存在的 users 表补充 must_change_password 列
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0`)
+  } catch {
+    // 列已存在则忽略
+  }
+
+  // 创建默认 admin 用户（如不存在）
+  const adminUser = db.prepare('SELECT id FROM users WHERE username = ?').get('admin')
+  if (!adminUser) {
+    const hash = bcrypt.hashSync('admin123', 10)
+    db.prepare(
+      'INSERT INTO users (username, password_hash, must_change_password) VALUES (?, ?, 1)'
+    ).run('admin', hash)
+    console.log('已创建默认管理员账户 admin / admin123')
+  }
 
   // 迁移：为已存在的 platforms 表补充 extra_config 列
   try {
