@@ -29,7 +29,16 @@ if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true })
 // 初始化数据库
 initDb()
 
+// 确保 JWT_SECRET 存在
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = 'cloud-monitor-default-secret-change-me'
+  logger.warn('未设置 JWT_SECRET 环境变量，使用默认值，请在生产环境中配置')
+}
+
 const app = express()
+
+// 信任反向代理（nginx / docker）
+app.set('trust proxy', 1)
 
 // 基础中间件
 app.use(cors({
