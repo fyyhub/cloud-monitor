@@ -6,7 +6,7 @@ const BASE_URL = 'https://api.vercel.com'
 export class VercelAdapter extends BasePlatformAdapter {
   constructor(apiKey, extraConfig = {}) {
     super(apiKey, extraConfig)
-    this.teamId = extraConfig.teamId || null
+    this.teamId = extraConfig?.teamId || null
     this.client = axios.create({
       baseURL: BASE_URL,
       headers: {
