@@ -56,12 +56,7 @@ COPY --from=backend-builder /app/backend/src ./src
 COPY backend/package.json ./
 
 # 数据和日志目录（建议挂载 volume）
-RUN mkdir -p /app/backend/data /app/backend/logs && \
-    # 创建非 root 用户
-    addgroup -g 1000 appuser && \
-    adduser -D -u 1000 -G appuser appuser && \
-    # 设置权限
-    chown -R appuser:appuser /app/backend /var/log/supervisor /run/nginx /var/cache/nginx /var/log/nginx
+RUN mkdir -p /app/backend/data /app/backend/logs /run/nginx
 
 # ---------- supervisord 配置 ----------
 COPY supervisord.conf /etc/supervisord.conf
