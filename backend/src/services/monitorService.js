@@ -8,7 +8,7 @@ export const monitorService = {
   async checkAllContainers() {
     const db = getDb()
     // 获取所有用户的所有启用平台
-    const platforms = db.prepare('SELECT * FROM platforms WHERE enabled = 1').all()
+    const platforms = await db.all('SELECT * FROM platforms WHERE enabled = 1', [])
 
     for (const platform of platforms) {
       try {
@@ -19,17 +19,19 @@ export const monitorService = {
         const remoteIds = remoteContainers.map(r => r.id)
 
         for (const remote of remoteContainers) {
-          const existing = db.prepare(
-            'SELECT * FROM containers WHERE platform_id = ? AND container_id = ?'
-          ).get(platform.id, remote.id)
+          const existing = await db.get(
+            'SELECT * FROM containers WHERE platform_id = ? AND container_id = ?',
+            [platform.id, remote.id]
+          )
 
           const prevStatus = existing?.status
           const newStatus = remote.status
 
           if (existing) {
-            db.prepare(
-              'UPDATE containers SET container_name = ?, status = ?, last_check = CURRENT_TIMESTAMP, metadata = ? WHERE id = ?'
-            ).run(remote.name, newStatus, JSON.stringify(remote.metadata || {}), existing.id)
+            await db.run(
+              'UPDATE containers SET container_name = ?, status = ?, last_check = CURRENT_TIMESTAMP, metadata = ? WHERE id = ?',
+              [remote.name, newStatus, JSON.stringify(remote.metadata || {}), existing.id]
+            )
 
             // 状态变化且变为异常时触发告警
             if (prevStatus !== newStatus && ['error', 'stopped'].includes(newStatus)) {
@@ -41,17 +43,18 @@ export const monitorService = {
               })
             }
           } else {
-            db.prepare(
-              'INSERT INTO containers (platform_id, container_id, container_name, status, last_check, metadata) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)'
-            ).run(platform.id, remote.id, remote.name, newStatus, JSON.stringify(remote.metadata || {}))
+            await db.run(
+              'INSERT INTO containers (platform_id, container_id, container_name, status, last_check, metadata) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)',
+              [platform.id, remote.id, remote.name, newStatus, JSON.stringify(remote.metadata || {})]
+            )
           }
         }
 
         // 删除远端已不存在的本地容器记录
-        const localContainers = db.prepare('SELECT id, container_id FROM containers WHERE platform_id = ?').all(platform.id)
+        const localContainers = await db.all('SELECT id, container_id FROM containers WHERE platform_id = ?', [platform.id])
         for (const row of localContainers) {
           if (!remoteIds.includes(row.container_id)) {
-            db.prepare('DELETE FROM containers WHERE id = ?').run(row.id)
+            await db.run('DELETE FROM containers WHERE id = ?', [row.id])
           }
         }
 

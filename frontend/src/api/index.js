@@ -4,7 +4,8 @@ export const authApi = {
   login: (data) => http.post('/auth/login', data),
   register: (data) => http.post('/auth/register', data),
   profile: () => http.get('/auth/profile'),
-  changePassword: (data) => http.post('/auth/change-password', data)
+  changePassword: (data) => http.post('/auth/change-password', data),
+  changeUsername: (data) => http.post('/auth/change-username', data)
 }
 
 export const platformApi = {

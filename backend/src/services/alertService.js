@@ -7,16 +7,18 @@ export const alertService = {
     const db = getDb()
 
     // 写入告警记录
-    const result = db.prepare(
-      'INSERT INTO alerts (container_id, alert_type, message) VALUES (?, ?, ?)'
-    ).run(containerId, alertType, message)
+    const result = await db.run(
+      'INSERT INTO alerts (container_id, alert_type, message) VALUES (?, ?, ?)',
+      [containerId, alertType, message]
+    )
 
     logger.warn('触发告警', { containerId, alertType, message })
 
     // 获取该用户的告警配置
-    const configs = db.prepare(
-      'SELECT * FROM alert_configs WHERE user_id = ? AND enabled = 1'
-    ).all(userId)
+    const configs = await db.all(
+      'SELECT * FROM alert_configs WHERE user_id = ? AND enabled = 1',
+      [userId]
+    )
 
     for (const cfg of configs) {
       const config = JSON.parse(cfg.config)
@@ -26,7 +28,7 @@ export const alertService = {
         } else if (cfg.notification_type === 'webhook') {
           await this._sendWebhook(config, { alertType, message, containerId })
         }
-        db.prepare('UPDATE alerts SET notified = 1 WHERE id = ?').run(result.lastInsertRowid)
+        await db.run('UPDATE alerts SET notified = 1 WHERE id = ?', [result.lastInsertRowid])
       } catch (err) {
         logger.error('发送告警通知失败', { type: cfg.notification_type, error: err.message })
       }

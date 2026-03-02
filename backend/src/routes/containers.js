@@ -9,27 +9,31 @@ const router = express.Router()
 router.use(authMiddleware)
 
 // 获取当前用户所有容器
-router.get('/', (req, res) => {
-  const db = getDb()
-  const containers = db.prepare(`
-    SELECT c.*, p.platform_type, p.name as platform_name
-    FROM containers c
-    JOIN platforms p ON c.platform_id = p.id
-    WHERE p.user_id = ?
-    ORDER BY c.last_check DESC
-  `).all(req.user.id)
+router.get('/', async (req, res, next) => {
+  try {
+    const db = getDb()
+    const containers = await db.all(`
+      SELECT c.*, p.platform_type, p.name as platform_name
+      FROM containers c
+      JOIN platforms p ON c.platform_id = p.id
+      WHERE p.user_id = ?
+      ORDER BY c.last_check DESC
+    `, [req.user.id])
 
-  res.json(containers.map(c => ({
-    ...c,
-    metadata: c.metadata ? JSON.parse(c.metadata) : null
-  })))
+    res.json(containers.map(c => ({
+      ...c,
+      metadata: c.metadata ? JSON.parse(c.metadata) : null
+    })))
+  } catch (err) {
+    next(err)
+  }
 })
 
 // 手动刷新所有容器状态
 router.post('/refresh', async (req, res, next) => {
   try {
     const db = getDb()
-    const platforms = db.prepare('SELECT * FROM platforms WHERE user_id = ? AND enabled = 1').all(req.user.id)
+    const platforms = await db.all('SELECT * FROM platforms WHERE user_id = ? AND enabled = 1', [req.user.id])
 
     for (const platform of platforms) {
       const apiKey = decrypt(platform.api_key)
@@ -39,20 +43,20 @@ router.post('/refresh', async (req, res, next) => {
         const containers = await adapter.listContainers()
         const remoteIds = containers.map(c => c.id)
         for (const c of containers) {
-          const existing = db.prepare('SELECT id FROM containers WHERE platform_id = ? AND container_id = ?').get(platform.id, c.id)
+          const existing = await db.get('SELECT id FROM containers WHERE platform_id = ? AND container_id = ?', [platform.id, c.id])
           if (existing) {
-            db.prepare('UPDATE containers SET container_name = ?, status = ?, last_check = CURRENT_TIMESTAMP, metadata = ? WHERE id = ?')
-              .run(c.name, c.status, JSON.stringify(c.metadata || {}), existing.id)
+            await db.run('UPDATE containers SET container_name = ?, status = ?, last_check = CURRENT_TIMESTAMP, metadata = ? WHERE id = ?',
+              [c.name, c.status, JSON.stringify(c.metadata || {}), existing.id])
           } else {
-            db.prepare('INSERT INTO containers (platform_id, container_id, container_name, status, last_check, metadata) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)')
-              .run(platform.id, c.id, c.name, c.status, JSON.stringify(c.metadata || {}))
+            await db.run('INSERT INTO containers (platform_id, container_id, container_name, status, last_check, metadata) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)',
+              [platform.id, c.id, c.name, c.status, JSON.stringify(c.metadata || {})])
           }
         }
         // 删除远端已不存在的本地容器记录
-        const local = db.prepare('SELECT id, container_id FROM containers WHERE platform_id = ?').all(platform.id)
+        const local = await db.all('SELECT id, container_id FROM containers WHERE platform_id = ?', [platform.id])
         for (const row of local) {
           if (!remoteIds.includes(row.container_id)) {
-            db.prepare('DELETE FROM containers WHERE id = ?').run(row.id)
+            await db.run('DELETE FROM containers WHERE id = ?', [row.id])
           }
         }
       } catch (err) {
@@ -70,11 +74,11 @@ router.post('/refresh', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const db = getDb()
-    const container = db.prepare(`
+    const container = await db.get(`
       SELECT c.*, p.platform_type, p.api_key, p.extra_config, p.name as platform_name
       FROM containers c JOIN platforms p ON c.platform_id = p.id
       WHERE c.id = ? AND p.user_id = ?
-    `).get(req.params.id, req.user.id)
+    `, [req.params.id, req.user.id])
     if (!container) return res.status(404).json({ error: '容器不存在' })
 
     const apiKey = decrypt(container.api_key)
@@ -92,11 +96,11 @@ router.get('/:id', async (req, res, next) => {
 async function containerAction(req, res, next, action) {
   try {
     const db = getDb()
-    const container = db.prepare(`
+    const container = await db.get(`
       SELECT c.*, p.platform_type, p.api_key, p.extra_config
       FROM containers c JOIN platforms p ON c.platform_id = p.id
       WHERE c.id = ? AND p.user_id = ?
-    `).get(req.params.id, req.user.id)
+    `, [req.params.id, req.user.id])
     if (!container) return res.status(404).json({ error: '容器不存在' })
 
     const apiKey = decrypt(container.api_key)
@@ -111,8 +115,8 @@ async function containerAction(req, res, next, action) {
       startContainer: 'running'
     }
     if (statusMap[action]) {
-      db.prepare('UPDATE containers SET status = ?, last_check = CURRENT_TIMESTAMP WHERE id = ?')
-        .run(statusMap[action], container.id)
+      await db.run('UPDATE containers SET status = ?, last_check = CURRENT_TIMESTAMP WHERE id = ?',
+        [statusMap[action], container.id])
     }
 
     logger.info(`容器操作: ${action}`, { containerId: container.id, userId: req.user.id })
@@ -131,11 +135,11 @@ router.delete('/:id', (req, res, next) => containerAction(req, res, next, 'delet
 router.get('/:id/logs', async (req, res, next) => {
   try {
     const db = getDb()
-    const container = db.prepare(`
+    const container = await db.get(`
       SELECT c.*, p.platform_type, p.api_key, p.extra_config
       FROM containers c JOIN platforms p ON c.platform_id = p.id
       WHERE c.id = ? AND p.user_id = ?
-    `).get(req.params.id, req.user.id)
+    `, [req.params.id, req.user.id])
     if (!container) return res.status(404).json({ error: '容器不存在' })
 
     const apiKey = decrypt(container.api_key)
@@ -167,11 +171,11 @@ router.post('/batch', async (req, res, next) => {
 
     for (const id of ids) {
       try {
-        const container = db.prepare(`
+        const container = await db.get(`
           SELECT c.*, p.platform_type, p.api_key, p.extra_config
           FROM containers c JOIN platforms p ON c.platform_id = p.id
           WHERE c.id = ? AND p.user_id = ?
-        `).get(id, req.user.id)
+        `, [id, req.user.id])
         if (!container) { results.push({ id, success: false, error: '不存在' }); continue }
 
         const apiKey = decrypt(container.api_key)
@@ -180,8 +184,8 @@ router.post('/batch', async (req, res, next) => {
         await adapter[methodMap[action]](container.container_id)
 
         if (statusMap[action]) {
-          db.prepare('UPDATE containers SET status = ?, last_check = CURRENT_TIMESTAMP WHERE id = ?')
-            .run(statusMap[action], id)
+          await db.run('UPDATE containers SET status = ?, last_check = CURRENT_TIMESTAMP WHERE id = ?',
+            [statusMap[action], id])
         }
 
         results.push({ id, success: true })

@@ -1,6 +1,7 @@
 # 依赖
 node_modules/
 npm-debug.log*
+yarn-error.log
 
 # 构建产物
 frontend/dist/
@@ -11,7 +12,42 @@ backend/logs/
 
 # 环境变量
 backend/.env
+.env
+.env.*
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 测试
+coverage/
+*.test.js
+__tests__/
+
+# 文档
+README.md
+*.md
+docs/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
 
 # 系统文件
 .DS_Store
 Thumbs.db
+*.log
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore

@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  cloud-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cloud-monitor:latest
+    container_name: cloud-monitor
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./data:/app/backend/data
+      - ./logs:/app/backend/logs
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET:-please-change-this-secret}
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+      # 数据库类型: sqlite (默认) / postgres / mysql
+      - DB_TYPE=${DB_TYPE:-sqlite}
+      # SQLite（DB_TYPE=sqlite 时使用）
+      - DATABASE_PATH=/app/backend/data/monitor.db
+      # PostgreSQL / MySQL（DB_TYPE=postgres 或 mysql 时使用）
+      # 方式1: 连接字符串
+      # - DATABASE_URL=${DATABASE_URL:-}
+      # 方式2: 独立配置项
+      # - DB_HOST=${DB_HOST:-localhost}
+      # - DB_PORT=${DB_PORT:-5432}
+      # - DB_NAME=${DB_NAME:-cloud_monitor}
+      # - DB_USER=${DB_USER:-postgres}
+      # - DB_PASS=${DB_PASS:-}
+      # - DB_SSL=${DB_SSL:-false}
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp
+      - /run
+
+# 示例：使用外部 PostgreSQL
+# services:
+#   postgres:
+#     image: postgres:16-alpine
+#     environment:
+#       POSTGRES_DB: cloud_monitor
+#       POSTGRES_USER: monitor
+#       POSTGRES_PASSWORD: your_password
+#     volumes:
+#       - pgdata:/var/lib/postgresql/data
+#
+#   cloud-monitor:
+#     ...
+#     environment:
+#       - DB_TYPE=postgres
+#       - DATABASE_URL=postgresql://monitor:your_password@postgres:5432/cloud_monitor
+#     depends_on:
+#       - postgres
+#
+# volumes:
+#   pgdata:

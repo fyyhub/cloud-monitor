@@ -10,11 +10,11 @@ const scheduledJobs = new Map()
 async function executeWatchTask(taskId) {
   const db = getDb()
 
-  const task = db.prepare('SELECT * FROM watch_tasks WHERE id = ? AND enabled = 1').get(taskId)
+  const task = await db.get('SELECT * FROM watch_tasks WHERE id = ? AND enabled = 1', [taskId])
   if (!task) return
 
   // 查询该任务监控的容器（含平台信息以获取 API key）
-  const rows = db.prepare(`
+  const rows = await db.all(`
     SELECT c.id as container_id, c.container_id as remote_id, c.container_name,
            c.status, c.platform_id,
            p.platform_type, p.api_key, p.extra_config
@@ -22,7 +22,7 @@ async function executeWatchTask(taskId) {
     JOIN containers c ON wtc.container_id = c.id
     JOIN platforms p ON c.platform_id = p.id
     WHERE wtc.task_id = ?
-  `).all(taskId)
+  `, [taskId])
 
   logger.info(`定时监测任务 [${task.name}] 开始，共 ${rows.length} 个容器`)
 
@@ -37,31 +37,32 @@ async function executeWatchTask(taskId) {
       const currentStatus = detail?.status ?? row.status
 
       // 同步状态到 DB
-      db.prepare('UPDATE containers SET status = ?, last_check = CURRENT_TIMESTAMP WHERE id = ?')
-        .run(currentStatus, row.container_id)
+      await db.run('UPDATE containers SET status = ?, last_check = CURRENT_TIMESTAMP WHERE id = ?',
+        [currentStatus, row.container_id])
 
       if (['stopped', 'error'].includes(currentStatus)) {
         logger.warn(`监测任务 [${task.name}]: 容器 "${row.container_name}" 状态为 ${currentStatus}，尝试重启`)
         await adapter.startContainer(row.remote_id)
 
-        db.prepare(
-          'INSERT INTO watch_logs (task_id, container_id, action, result, message) VALUES (?, ?, ?, ?, ?)'
-        ).run(taskId, row.container_id, 'restart', 'success',
-          `容器状态为 ${currentStatus}，已执行重启`)
+        await db.run(
+          'INSERT INTO watch_logs (task_id, container_id, action, result, message) VALUES (?, ?, ?, ?, ?)',
+          [taskId, row.container_id, 'restart', 'success', `容器状态为 ${currentStatus}，已执行重启`]
+        )
 
         logger.info(`监测任务 [${task.name}]: 容器 "${row.container_name}" 重启指令已发送`)
       } else {
-        db.prepare(
-          'INSERT INTO watch_logs (task_id, container_id, action, result, message) VALUES (?, ?, ?, ?, ?)'
-        ).run(taskId, row.container_id, 'check', 'ok',
-          `容器状态正常: ${currentStatus}`)
+        await db.run(
+          'INSERT INTO watch_logs (task_id, container_id, action, result, message) VALUES (?, ?, ?, ?, ?)',
+          [taskId, row.container_id, 'check', 'ok', `容器状态正常: ${currentStatus}`]
+        )
       }
     } catch (err) {
       logger.error(`监测任务 [${task.name}]: 容器 "${row.container_name}" 处理失败`, { error: err.message })
       try {
-        db.prepare(
-          'INSERT INTO watch_logs (task_id, container_id, action, result, message) VALUES (?, ?, ?, ?, ?)'
-        ).run(taskId, row.container_id, 'check', 'error', err.message)
+        await db.run(
+          'INSERT INTO watch_logs (task_id, container_id, action, result, message) VALUES (?, ?, ?, ?, ?)',
+          [taskId, row.container_id, 'check', 'error', err.message]
+        )
       } catch { /* ignore log write failure */ }
     }
   }
@@ -93,9 +94,9 @@ export const watchService = {
   },
 
   // 应用启动时加载所有已启用任务
-  loadAll() {
+  async loadAll() {
     const db = getDb()
-    const tasks = db.prepare('SELECT * FROM watch_tasks WHERE enabled = 1').all()
+    const tasks = await db.all('SELECT * FROM watch_tasks WHERE enabled = 1', [])
     for (const task of tasks) {
       this.scheduleTask(task)
     }
