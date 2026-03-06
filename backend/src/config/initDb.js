@@ -1,13 +1,15 @@
+import 'dotenv/config'
 import bcrypt from 'bcrypt'
-import { getDb, DB_TYPE } from './database.js'
+import { getDb, getDbType } from './database.js'
 
 export async function initDb() {
   const db = getDb()
+  const dbType = getDbType()
 
   // 测试连接
   await db.authenticate()
 
-  if (DB_TYPE === 'sqlite') {
+  if (dbType === 'sqlite') {
     await db.exec(`
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -91,7 +93,7 @@ export async function initDb() {
         FOREIGN KEY (task_id) REFERENCES watch_tasks(id) ON DELETE CASCADE
       );
     `)
-  } else if (DB_TYPE === 'postgres' || DB_TYPE === 'postgresql') {
+  } else if (dbType === 'postgres' || dbType === 'postgresql') {
     await db.exec(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,

@@ -19,19 +19,13 @@ services:
       - JWT_SECRET=${JWT_SECRET:-please-change-this-secret}
       - CORS_ORIGIN=${CORS_ORIGIN:-*}
       # 数据库类型: sqlite (默认) / postgres / mysql
-      - DB_TYPE=${DB_TYPE:-sqlite}
+      - DB_TYPE=${DB_TYPE:-postgres}
       # SQLite（DB_TYPE=sqlite 时使用）
-      - DATABASE_PATH=/app/backend/data/monitor.db
+      # - DATABASE_PATH=/app/backend/data/monitor.db
       # PostgreSQL / MySQL（DB_TYPE=postgres 或 mysql 时使用）
       # 方式1: 连接字符串
-      # - DATABASE_URL=${DATABASE_URL:-}
-      # 方式2: 独立配置项
-      # - DB_HOST=${DB_HOST:-localhost}
-      # - DB_PORT=${DB_PORT:-5432}
-      # - DB_NAME=${DB_NAME:-cloud_monitor}
-      # - DB_USER=${DB_USER:-postgres}
-      # - DB_PASS=${DB_PASS:-}
-      # - DB_SSL=${DB_SSL:-false}
+      - DATABASE_URL=${DATABASE_URL:-}
+      - DB_SSL=${DB_SSL:-true}
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
       interval: 30s

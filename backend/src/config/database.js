@@ -6,7 +6,10 @@ import fs from 'fs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-export const DB_TYPE = (process.env.DB_TYPE || 'sqlite').toLowerCase()
+// 延迟读取，确保 dotenv 已加载后再取值
+export function getDbType() {
+  return (process.env.DB_TYPE || 'sqlite').toLowerCase()
+}
 
 function createSqliteDb() {
   const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../../data/monitor.db')
@@ -21,12 +24,15 @@ function createSqliteDb() {
 }
 
 function createSequelize() {
-  if (DB_TYPE === 'postgres' || DB_TYPE === 'postgresql') {
+  const dbType = getDbType()
+
+  if (dbType === 'postgres' || dbType === 'postgresql') {
     if (process.env.DATABASE_URL) {
+      const needSsl = process.env.DB_SSL === 'true' || process.env.DATABASE_URL.includes('sslmode=require')
       return new Sequelize(process.env.DATABASE_URL, {
         dialect: 'postgres',
         logging: false,
-        dialectOptions: process.env.DB_SSL === 'true' ? {
+        dialectOptions: needSsl ? {
           ssl: { require: true, rejectUnauthorized: false }
         } : {}
       })
@@ -45,7 +51,7 @@ function createSequelize() {
     })
   }
 
-  if (DB_TYPE === 'mysql') {
+  if (dbType === 'mysql') {
     if (process.env.DATABASE_URL) {
       return new Sequelize(process.env.DATABASE_URL, {
         dialect: 'mysql',
@@ -73,11 +79,17 @@ function createSequelize() {
 // 统一数据库接口（async/await）
 class DbAdapter {
   constructor() {
-    if (DB_TYPE === 'sqlite') {
+    const dbType = getDbType()
+    this._dbType = dbType
+    if (dbType === 'sqlite') {
       this._sqlite = createSqliteDb()
     } else {
       this._seq = createSequelize()
     }
+  }
+
+  get isPg() {
+    return this._dbType === 'postgres' || this._dbType === 'postgresql'
   }
 
   // 将 ? 占位符转为 Postgres 的 $1/$2...
@@ -91,10 +103,10 @@ class DbAdapter {
     if (this._sqlite) {
       return this._sqlite.prepare(sql).all(...params)
     }
-    const q = DB_TYPE === 'postgres' || DB_TYPE === 'postgresql' ? this._pg(sql) : sql
+    const q = this.isPg ? this._pg(sql) : sql
     return this._seq.query(q, {
-      replacements: DB_TYPE === 'postgres' || DB_TYPE === 'postgresql' ? undefined : params,
-      bind: DB_TYPE === 'postgres' || DB_TYPE === 'postgresql' ? params : undefined,
+      replacements: this.isPg ? undefined : params,
+      bind: this.isPg ? params : undefined,
       type: QueryTypes.SELECT,
       raw: true
     })
@@ -112,10 +124,10 @@ class DbAdapter {
       const r = this._sqlite.prepare(sql).run(...params)
       return { lastInsertRowid: r.lastInsertRowid, changes: r.changes }
     }
-    const isPg = DB_TYPE === 'postgres' || DB_TYPE === 'postgresql'
-    const q = isPg ? this._pg(sql) : sql
 
-    if (isPg) {
+    const q = this.isPg ? this._pg(sql) : sql
+
+    if (this.isPg) {
       // Postgres RETURNING id 支持
       const returning = /^\s*INSERT/i.test(sql) ? q + ' RETURNING id' : q
       const [rows] = await this._seq.query(returning, { bind: params, raw: true })
