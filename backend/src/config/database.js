@@ -11,6 +11,57 @@ export function getDbType() {
   return (process.env.DB_TYPE || 'sqlite').toLowerCase()
 }
 
+function parseBoolEnv(name, defaultValue = false) {
+  const value = process.env[name]
+  if (value == null || value === '') return defaultValue
+  return value === 'true'
+}
+
+function getPgSslModeFromUrl(rawUrl) {
+  if (!rawUrl) return null
+  try {
+    return new URL(rawUrl).searchParams.get('sslmode')?.toLowerCase() || null
+  } catch {
+    return null
+  }
+}
+
+function buildPgSslOptions({ rawUrl } = {}) {
+  const sslMode = getPgSslModeFromUrl(rawUrl)
+  const sslEnabled = parseBoolEnv('DB_SSL', false) || ['require', 'verify-ca', 'verify-full'].includes(sslMode)
+
+  if (!sslEnabled) return {}
+
+  const rejectUnauthorized = parseBoolEnv(
+    'DB_SSL_REJECT_UNAUTHORIZED',
+    sslMode === 'verify-ca' || sslMode === 'verify-full'
+  )
+
+  const ssl = {
+    require: true,
+    rejectUnauthorized
+  }
+
+  if (process.env.DB_SSL_CA) {
+    ssl.ca = process.env.DB_SSL_CA.replace(/\\n/g, '\n')
+  }
+
+  return { ssl }
+}
+
+function normalizePgConnectionString(rawUrl) {
+  if (!rawUrl) return rawUrl
+
+  try {
+    const url = new URL(rawUrl)
+    // node-postgres 会优先采用 connection string 里的 SSL 参数，导致显式传入的 ssl 对象被覆盖。
+    ;['sslmode', 'sslcert', 'sslkey', 'sslrootcert'].forEach(key => url.searchParams.delete(key))
+    return url.toString()
+  } catch {
+    return rawUrl
+  }
+}
+
 function createSqliteDb() {
   const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../../data/monitor.db')
   const dbDir = path.dirname(dbPath)
@@ -28,13 +79,10 @@ function createSequelize() {
 
   if (dbType === 'postgres' || dbType === 'postgresql') {
     if (process.env.DATABASE_URL) {
-      const needSsl = process.env.DB_SSL === 'true' || process.env.DATABASE_URL.includes('sslmode=require')
-      return new Sequelize(process.env.DATABASE_URL, {
+      return new Sequelize(normalizePgConnectionString(process.env.DATABASE_URL), {
         dialect: 'postgres',
         logging: false,
-        dialectOptions: needSsl ? {
-          ssl: { require: true, rejectUnauthorized: false }
-        } : {}
+        dialectOptions: buildPgSslOptions({ rawUrl: process.env.DATABASE_URL })
       })
     }
     return new Sequelize({
@@ -45,9 +93,7 @@ function createSequelize() {
       username: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASS || '',
       logging: false,
-      dialectOptions: process.env.DB_SSL === 'true' ? {
-        ssl: { require: true, rejectUnauthorized: false }
-      } : {}
+      dialectOptions: buildPgSslOptions()
     })
   }
 
